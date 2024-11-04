@@ -593,7 +593,10 @@
 		},
 		"win": {
 			"sign": "./electron/hook/sign.js",
-			"target": "nsis",
+			"target": [
+				"nsis",
+				"nsis:x64"
+			],
 			"icon": "electron/img/icons/256x256.ico",
 			"publish": [
 				{
