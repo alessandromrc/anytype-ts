@@ -4,7 +4,7 @@ import sha1 from 'sha1';
 import raf from 'raf';
 import { observer } from 'mobx-react';
 import { Editable, Icon, IconObject, Loader } from 'Component';
-import { I, C, S, U, J, keyboard, Mark, translate, Storage } from 'Lib';
+import { I, C, S, U, J, M, keyboard, Mark, translate, Storage } from 'Lib';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation } from 'swiper/modules';
 
@@ -76,7 +76,6 @@ const ChatForm = observer(class ChatForm extends React.Component<Props, State> {
 	render () {
 		const { rootId, readonly, getReplyContent } = this.props;
 		const { attachments } = this.state;
-		const { space } = S.Common;
 		const value = this.getTextValue();
 
 		if (readonly) {
@@ -585,34 +584,111 @@ const ChatForm = observer(class ChatForm extends React.Component<Props, State> {
 		this.onAttachmentRemove(sha1(url));
 	};
 
+	getCommands () {
+		return [
+			{ id: 'ai' }
+		];
+	};
+
+	onCommand (id: string) {
+		switch (id) {
+			case 'ai': {
+				this.onAi();
+				break;
+			};
+		};
+	};
+
+	onAi () {
+		const { rootId } = this.props;
+		const parsed = this.getMarksFromHtml();
+		const command = this.parseCommand(parsed.text);
+
+		this.setLoading(true);
+		C.AIWritingTools(I.AIMode.Default, command.text, (message: any) => {
+			this.setLoading(false);
+
+			if (message.error.code) {
+				return;
+			};
+
+			const { text } = message;
+			const time = U.Date.now();
+			
+			const list = S.Chat.getList(rootId);
+			const newMessage = new M.ChatMessage({ 
+				id: Math.random().toString(36).substring(7),
+				creator: S.Auth.account.id, 
+				content: { text, style: I.TextStyle.Paragraph, marks: [] }, 
+				attachments: [],
+				orderId: U.Date.timestamp().toString(),
+				createdAt: time,
+				modifiedAt: time,
+				replyToMessageId: '',
+				reactions: [],
+				isFirst: false,
+				isLast: false,
+			});
+
+			S.Chat.add(rootId, list.length, newMessage);
+		});
+	};
+
+	setLoading (v: boolean) {
+		const node = $(this.node);
+		const loader = node.find('#form-loader');
+
+		v ? loader.addClass('active') : loader.removeClass('active');
+	};
+
+	parseCommand (text: string) {
+		const reg = new RegExp(`^\/(${this.getCommands().map(it => it.id).join('|')})`);
+		const m = text.match(reg);
+
+		if (!m) {
+			return { id: '', text };
+		};
+
+		return { 
+			id: String(m[1] || ''), 
+			text: text.replace(reg, ''),
+		};
+	};
+
 	onSend () {
 		if (!this.canSend() || S.Menu.isOpen('blockMention')){
 			return;
 		};
 
 		const { rootId, scrollToBottom, scrollToMessage } = this.props;
-		const node = $(this.node);
-		const loader = node.find('#form-loader');
 		const list = this.state.attachments || [];
 		const files = list.filter(it => it.isTmp && U.Object.isFileLayout(it.layout));
 		const bookmarks = list.filter(it => it.isTmp && U.Object.isBookmarkLayout(it.layout));
 		const fl = files.length;
 		const bl = bookmarks.length;
 		const attachments = (this.state.attachments || []).filter(it => !it.isTmp).map(it => ({ target: it.id, type: I.AttachmentType.Link }));
-
-		loader.addClass('active');
+		const parsed = this.getMarksFromHtml();
+		const command = this.parseCommand(parsed.text);
 
 		const clear = () => {
 			this.onEditClear();
 			this.onReplyClear();
-			loader.removeClass('active');
+			this.setLoading(false);
 		};
-		
+
+		if (command.id) {
+			this.onCommand(command.id);
+			clear();
+			return;
+		};
+
+		this.setLoading(true);
+
 		const callBack = () => {
 			if (this.editingId) {
 				const message = S.Chat.getMessage(rootId, this.editingId);
 				if (message) {
-					const { marks, text } = this.getMarksFromHtml();
+					const { marks, text } = parsed;
 					const update = U.Common.objectCopy(message);
 
 					update.attachments = attachments;
@@ -628,7 +704,7 @@ const ChatForm = observer(class ChatForm extends React.Component<Props, State> {
 				const message = {
 					replyToMessageId: this.replyingId,
 					content: {
-						...this.getMarksFromHtml(),
+						...parsed,
 						style: I.TextStyle.Paragraph,
 					},
 					attachments,

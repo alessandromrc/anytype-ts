@@ -13,7 +13,6 @@ class ChatMessageContent implements I.ChatMessageContent {
 		this.text = String(props.text || '');
 		this.style = Number(props.style) || I.TextStyle.Paragraph;
 		this.marks = Array.isArray(props.marks) ? props.marks : [];
-
 		this.marks = this.marks.map(it => new Mark(it));
 
 		makeObservable(this, {
