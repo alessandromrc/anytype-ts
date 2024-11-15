@@ -642,7 +642,7 @@ const ChatForm = observer(class ChatForm extends React.Component<Props, State> {
 	};
 
 	parseCommand (text: string) {
-		const reg = new RegExp(`^\/(${this.getCommands().map(it => it.id).join('|')})`);
+		const reg = new RegExp(`^\/(${this.getCommands().map(it => it.id).join('|')})\s`);
 		const m = text.match(reg);
 
 		if (!m) {
